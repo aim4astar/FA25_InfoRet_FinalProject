@@ -1,11 +1,10 @@
 from typing import List, Dict, Tuple
-
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import faiss
 
 from text_representation import TfIdfRepresentation, Bm25Representation, BertEmbeddingRepresentation
-from config import TOP_K_RETRIEVAL, PRECISION_AT_K_LIST, USE_FAISS
+from config import TOP_K_RETRIEVAL, PRECISION_AT_K_LIST, USE_FAISS, EVALUATION_SAMPLE_SIZE
 
 
 class SemanticSearchEngine:
@@ -27,19 +26,24 @@ class SemanticSearchEngine:
     # Input: none. Output: populated internal structures ready for search and evaluation.
     # ------------------------------------------------------------------------------------------------
     def buildAllIndices(self) -> None:
+        print("Building TF-IDF index...")
         self.tfIdfRep.fitDocuments(self.corpusTexts)
         self.tfIdfMatrix = self.tfIdfRep.documentMatrix
 
+        print("Building BM25 index...")
         self.bm25Rep.fitDocuments(self.corpusTexts)
         self.bm25Ready = True
 
+        print("Building BERT embeddings (this may take a while for large corpora)...")
         self.bertEmbeddings = self.bertRep.encodeDocuments(self.corpusTexts)
         self.bertEmbeddings = self._l2Normalize(self.bertEmbeddings)
 
         if USE_FAISS:
+            print("Building FAISS index for fast similarity search...")
             dim = self.bertEmbeddings.shape[1]
             self.faissIndex = faiss.IndexFlatIP(dim)
             self.faissIndex.add(self.bertEmbeddings.astype(np.float32))
+            print(f"FAISS index built with {self.faissIndex.ntotal} vectors")
 
     # ------------------------------------------------------------------------------------------------
     # Normalizes embedding vectors to unit length so inner product corresponds to cosine similarity.
@@ -116,16 +120,23 @@ class SemanticSearchEngine:
     # ------------------------------------------------------------------------------------------------
     def computePrecisionAtK(self, modelType: str = "bert",
                             kList: List[int] = None,
-                            maxQueries: int = 100) -> Dict[int, float]:
+                            maxQueries: int = None) -> Dict[int, float]:
         if kList is None:
             kList = PRECISION_AT_K_LIST
+        if maxQueries is None:
+            maxQueries = min(EVALUATION_SAMPLE_SIZE, len(self.papers))
 
         numQueries = min(maxQueries, len(self.papers))
         queryIndices = list(range(numQueries))
 
+        print(f"Evaluating {modelType.upper()} on {numQueries} queries...")
+
         precisionSums = {k: 0.0 for k in kList}
 
         for idx in queryIndices:
+            if idx % 50 == 0:
+                print(f"   Progress: {idx}/{numQueries} queries evaluated...")
+                
             queryPaper = self.papers[idx]
             queryAbstract = queryPaper["abstract"]
             queryCategory = queryPaper["category"]
@@ -133,9 +144,10 @@ class SemanticSearchEngine:
             results = self.searchByAbstract(
                 queryAbstract=queryAbstract,
                 modelType=modelType,
-                topK=max(kList) + 1
+                topK=max(kList) + 1                                                             # +1 to account for self-match exclusion
             )
 
+            # Remove the paper itself from results
             filteredResults = [r for r in results if r[0]["id"] != queryPaper["id"]]
 
             for k in kList:

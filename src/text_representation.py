@@ -18,15 +18,15 @@ class TfIdfRepresentation:
         self.documentMatrix = None
 
     # ------------------------------------------------------------------------------------------------
-    # Fits a TF–IDF vectorizer on corpus texts and stores the resulting sparse document matrix.
+    # Fits a TF-IDF vectorizer on corpus texts and stores the resulting sparse document matrix.
     # Input: list of document strings. Output: internal sparse matrix for later similarity queries.
     # ------------------------------------------------------------------------------------------------
     def fitDocuments(self, corpusTexts: List[str]) -> None:
         self.documentMatrix = self.vectorizer.fit_transform(corpusTexts)
 
     # ------------------------------------------------------------------------------------------------
-    # Encodes a query string into the TF–IDF feature space consistent with the fitted vocabulary.
-    # Input: query text string. Output: one-row sparse TF–IDF vector ready for similarity scoring.
+    # Encodes a query string into the TF-IDF feature space consistent with the fitted vocabulary.
+    # Input: query text string. Output: one-row sparse TF-IDF vector ready for similarity scoring.
     # ------------------------------------------------------------------------------------------------
     def encodeQuery(self, queryText: str):
         return self.vectorizer.transform([queryText])
