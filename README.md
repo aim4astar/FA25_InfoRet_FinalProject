@@ -25,35 +25,11 @@ The search engine provides three retrieval strategies:
 
 ---
 
-### 🧱 Modular Architecture (6 Files)
-The codebase is divided into exactly **six core implementation files**, aligned with assignment requirements:
-
-```
-config.py
-data_loader.py
-text_representation.py
-search_engine.py
-evaluation.py
-main.py
-```
-
-Additional supporting files:
-
-```
-test_semantic_search.py
-requirements.txt
-README.md
-```
-
-Each function includes standardized header-style comments for clarity.
-
----
-
 ### ⚙️ GPU/CPU Auto-Detection
 The system automatically selects the optimal compute device:
 
 - Uses **CUDA GPU**, if available  
-- Falls back to **CPU** with clean messages (no warnings)
+- Falls back to **CPU** with clean messages
 
 ---
 
@@ -105,11 +81,8 @@ project/
 ├── main.py
 │
 ├── test_semantic_search.py
-├── requirements.txt
-└── README.md
+└── requirements.txt
 ```
-
----
 
 ## ⚙️ Installation
 
