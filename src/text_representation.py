@@ -6,7 +6,7 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 import torch
 
-from config import EMBEDDING_MODEL_NAME, BATCH_SIZE
+from config import EMBEDDING_MODEL_NAMES, DEFAULT_EMBEDDING_MODEL, BATCH_SIZE
 
 
 class TfIdfRepresentation:
@@ -56,20 +56,33 @@ class Bm25Representation:
 
 
 class BertEmbeddingRepresentation:
-    def __init__(self, modelName: str = EMBEDDING_MODEL_NAME):
-        self.device = self._selectDevice()
+    def __init__(self, modelName: str = None, verbose: bool = True):
+        if modelName is None:
+            modelName = EMBEDDING_MODEL_NAMES[DEFAULT_EMBEDDING_MODEL]
+        elif modelName in EMBEDDING_MODEL_NAMES:
+            modelName = EMBEDDING_MODEL_NAMES[modelName]
+            
+        # Print cache location before loading model
+        from huggingface_hub import snapshot_download
+        cache_dir = snapshot_download(repo_id=modelName, local_files_only=False)
+        print(f"Model '{modelName}' cache location: {cache_dir}")
+            
+        self.device = self._selectDevice(verbose)
         self.model = SentenceTransformer(modelName, device=self.device)
+        self.modelName = modelName
 
     # ------------------------------------------------------------------------------------------------
     # Chooses GPU if available, otherwise CPU, and prints a short info message for the user.
-    # Input: none. Output: device string ("cuda" or "cpu") used by the embedding model.
+    # Input: verbose flag to control logging. Output: device string ("cuda" or "cpu").
     # ------------------------------------------------------------------------------------------------
-    def _selectDevice(self) -> str:
+    def _selectDevice(self, verbose: bool = True) -> str:
         if torch.cuda.is_available():
-            print("Info: GPU detected, using CUDA for embedding computations.")
+            if verbose:
+                print("Info: GPU detected, using CUDA for embedding computations.")
             return "cuda"
         else:
-            print("Info: GPU not detected, using CPU for embedding computations.")
+            if verbose:
+                print("Info: GPU not detected, using CPU for embedding computations.")
             return "cpu"
 
     # ------------------------------------------------------------------------------------------------
@@ -77,12 +90,13 @@ class BertEmbeddingRepresentation:
     # Input: list of strings and optional batch size. Output: 2D numpy array of embeddings.
     # ------------------------------------------------------------------------------------------------
     def encodeDocuments(self, corpusTexts: List[str],
-                        batchSize: int = BATCH_SIZE) -> np.ndarray:
+                        batchSize: int = BATCH_SIZE,
+                        show_progress_bar: bool = True) -> np.ndarray:
         embeddings = self.model.encode(
             corpusTexts,
             batch_size=batchSize,
             convert_to_numpy=True,
-            show_progress_bar=True
+            show_progress_bar=show_progress_bar
         )
         return embeddings
 

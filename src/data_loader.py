@@ -1,3 +1,5 @@
+import os
+import json
 import re
 import string
 import random
@@ -5,7 +7,13 @@ from typing import List, Dict
 import time
 
 import arxiv
-from config import ARXIV_QUERIES, MAX_RESULTS_PER_QUERY, RANDOM_SEED, MAX_TOTAL_PAPERS
+from config import (
+    ARXIV_QUERIES,
+    MAX_RESULTS_PER_QUERY,
+    RANDOM_SEED,
+    MAX_TOTAL_PAPERS,
+    DATASET_PATH,
+)
 
 random.seed(RANDOM_SEED)
 
@@ -105,26 +113,30 @@ def fetchArxivPapers(query: str, maxResults: int) -> List[Dict]:
 # Input: optional list of queries and per-query limit. Output: shuffled list of unique paper dicts.
 # ----------------------------------------------------------------------------------------------------
 def buildCorpusFromArxiv(queries: List[str] = None,
-                         maxResultsPerQuery: int = None) -> List[Dict]:
+                            maxResultsPerQuery: int = None,
+                            maxPapers: int = None) -> Dict:
     if queries is None:
         queries = ARXIV_QUERIES
     if maxResultsPerQuery is None:
         maxResultsPerQuery = MAX_RESULTS_PER_QUERY
+    if maxPapers is None:
+        maxPapers = MAX_TOTAL_PAPERS
 
     allPapers = []
     print(f"Starting arXiv data collection with {len(queries)} queries...")
-    print(f"Target: {maxResultsPerQuery} papers per query")
+    print(f"Target: {maxResultsPerQuery} papers per query (max total ≈ {maxPapers})")
     
     for i, query in enumerate(queries):
         print(f"Progress: Query {i+1}/{len(queries)}: {query}")
         queryPapers = fetchArxivPapers(query, maxResultsPerQuery)
         allPapers.extend(queryPapers)
                 
-        if i < len(queries) - 1:                                                #Avoid rate limiting - longer delay between queries
-            time.sleep(2)                                                       #Increased to 2 seconds
-                
-        if len(allPapers) >= MAX_TOTAL_PAPERS * 1.2:                            #Buffer for duplication
-            print(f"Approaching paper limit, stopping early.")
+        if i < len(queries) - 1:
+            time.sleep(2)
+
+        # Early stop with some buffer for duplicates
+        if len(allPapers) >= maxPapers * 1.2:
+            print(f"Approaching paper limit (~{maxPapers}), stopping early.")
             break
 
     # Remove duplicate papers
@@ -139,17 +151,18 @@ def buildCorpusFromArxiv(queries: List[str] = None,
         else:
             duplicate_count += 1
     
-    if len(uniquePapers) > MAX_TOTAL_PAPERS:                                                #Apply maximum paper limit
-        print(f"Limiting corpus from {len(uniquePapers)} to {MAX_TOTAL_PAPERS} papers")
-        uniquePapers = uniquePapers[:MAX_TOTAL_PAPERS]
+    if len(uniquePapers) > maxPapers:
+        print(f"Limiting corpus from {len(uniquePapers)} to {maxPapers} papers")
+        uniquePapers = uniquePapers[:maxPapers]
 
     category_counts = {}
     for paper in uniquePapers:
         category = paper["category"]
         category_counts[category] = category_counts.get(category, 0) + 1
     
-    print(f"\nFinal Corpus Statistics:")
-    print(f"Total unique papers: {len(uniquePapers)}")
+    print(f"\nFinal Corpus Statistics (arXiv API):")
+    print(f"Total fetched (with duplicates): {len(allPapers)}")
+    print(f"Total unique papers used: {len(uniquePapers)}")
     print(f"Duplicates removed: {duplicate_count}")
     print("Papers per category:")
     for category, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True):
@@ -163,9 +176,106 @@ def buildCorpusFromArxiv(queries: List[str] = None,
     
     random.shuffle(uniquePapers)
     corpus_stats = {
-        'papers': uniquePapers,
-        'total_fetched': len(allPapers),
-        'duplicates_removed': duplicate_count,
-        'unique_count': len(uniquePapers)
+        "papers": uniquePapers,
+        "total_fetched": len(allPapers),
+        "duplicates_removed": duplicate_count,
+        "unique_count": len(uniquePapers),
     }
+    return corpus_stats
+    
+
+# ----------------------------------------------------------------------------------------------------
+# Loads papers from a local arXiv metadata JSON snapshot (one JSON object per line),
+# applies basic filtering & preprocessing, and returns a corpus_stats dict.
+# ----------------------------------------------------------------------------------------------------
+def buildCorpusFromJson(dataset_path: str = DATASET_PATH,
+                        maxPapers: int = None) -> Dict:
+                            
+    if not os.path.isfile(dataset_path):
+        raise FileNotFoundError(
+            f"Dataset file not found at '{dataset_path}'. "
+            f"Please place arxiv-metadata-oai-snapshot.json in the project folder."
+        )
+
+    print(f"Loading corpus from local JSON: {dataset_path}")
+    if maxPapers:
+        print(f"Maximum papers to load: {maxPapers}")
+    else:
+        print("Loading ALL papers (no limit)")
+
+    allPapers = []
+    seenIds = set()
+    duplicate_count = 0
+    total_lines = 0
+
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        for line in f:
+            total_lines += 1
+
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            paper_id = record.get("id")
+            if not paper_id:
+                continue
+
+            # Handle duplicates
+            if paper_id in seenIds:
+                duplicate_count += 1
+                continue
+
+            # Preprocess abstract
+            raw_abstract = record.get("abstract", "")
+            abstract = preprocessText(raw_abstract)
+            if not abstract:
+                continue
+
+            # Extract fields
+            title = record.get("title", "").strip()
+            category_str = record.get("categories", "")
+            category = category_str.split()[0] if category_str else "unknown"
+
+            # Authors
+            authors_parsed = record.get("authors_parsed")
+            if isinstance(authors_parsed, list) and authors_parsed:
+                authors = [" ".join(x for x in a if x) for a in authors_parsed]
+            else:
+                authors = [a.strip() for a in record.get("authors", "").split(" and ")] \
+                        if record.get("authors") else ["Unknown"]
+
+            paperDict = {
+                "id": paper_id,
+                "title": title,
+                "abstract": abstract,
+                "category": category,
+                "published": record.get("update_date") or None,
+                "authors": authors,
+            }
+
+            allPapers.append(paperDict)
+            seenIds.add(paper_id)
+
+            # Stop early ONLY if the user passed maxPapers
+            if maxPapers and len(allPapers) >= maxPapers:
+                break
+
+    # Stats
+    print("\nLoaded Papers Summary (Local JSON):")
+    print(f"Total lines read: {total_lines}")
+    print(f"Total unique papers loaded: {len(allPapers)}")
+    print(f"Duplicate IDs skipped: {duplicate_count}")
+    corpus_stats = {
+        "papers": allPapers,
+        "total_fetched": total_lines,
+        "duplicates_removed": duplicate_count,
+        "unique_ids_encountered": len(seenIds),
+        "unique_papers_loaded": len(allPapers)
+    }
+
     return corpus_stats

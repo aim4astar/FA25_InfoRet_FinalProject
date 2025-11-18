@@ -23,15 +23,21 @@ ARXIV_QUERIES = [
     "cat:cs.NE", "cat:stat.ML", "cat:physics.comp-ph", "cat:math.NA"
 ]
 
+DATASET_PATH = "arxiv-metadata-oai-snapshot.json"
 MAX_RESULTS_PER_QUERY = 300
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL_NAMES = {
+    "minilm": "sentence-transformers/all-MiniLM-L6-v2",
+    "mpnet": "sentence-transformers/all-mpnet-base-v2", 
+    "multiqa": "sentence-transformers/multi-qa-mpnet-base-dot-v1"
+}
+DEFAULT_EMBEDDING_MODEL = "minilm"
 BATCH_SIZE = 32
 TOP_K_RETRIEVAL = 10
 PRECISION_AT_K_LIST = [1, 3, 5, 10]
 USE_FAISS = True
 RANDOM_SEED = 42
 EVALUATION_SAMPLE_SIZE = 300                                            # Number of papers to use for evaluation
-PLOT_COLORS = {"tfidf": "blue", "bm25": "green", "bert": "red"}
+PLOT_COLORS = {"tfidf": "blue", "bm25": "green", "bert": "red", "mpnet": "purple", "multiqa": "orange"}
 SAVE_EMBEDDINGS_VISUALIZATION = True
 MAX_TOTAL_PAPERS = 2500
 RESULTS_DIR = "search_results"
