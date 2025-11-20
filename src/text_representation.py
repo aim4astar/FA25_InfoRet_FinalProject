@@ -1,12 +1,14 @@
 from typing import List
-
 import numpy as np
+import torch
 from sklearn.feature_extraction.text import TfidfVectorizer
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
-import torch
-
-from config import EMBEDDING_MODEL_NAMES, DEFAULT_EMBEDDING_MODEL, BATCH_SIZE
+from sklearn.decomposition import TruncatedSVD, LatentDirichletAllocation
+from sklearn.preprocessing import Normalizer
+from sklearn.pipeline import make_pipeline
+from sklearn.feature_extraction.text import CountVectorizer
+from config import embeddingModelNames, defaultEmbeddingModel, batchSize
 
 
 class TfIdfRepresentation:
@@ -58,9 +60,9 @@ class Bm25Representation:
 class BertEmbeddingRepresentation:
     def __init__(self, modelName: str = None, verbose: bool = True):
         if modelName is None:
-            modelName = EMBEDDING_MODEL_NAMES[DEFAULT_EMBEDDING_MODEL]
-        elif modelName in EMBEDDING_MODEL_NAMES:
-            modelName = EMBEDDING_MODEL_NAMES[modelName]
+            modelName = embeddingModelNames[defaultEmbeddingModel]
+        elif modelName in embeddingModelNames:
+            modelName = embeddingModelNames[modelName]
             
         # Print cache location before loading model
         from huggingface_hub import snapshot_download
@@ -90,13 +92,13 @@ class BertEmbeddingRepresentation:
     # Input: list of strings and optional batch size. Output: 2D numpy array of embeddings.
     # ------------------------------------------------------------------------------------------------
     def encodeDocuments(self, corpusTexts: List[str],
-                        batchSize: int = BATCH_SIZE,
-                        show_progress_bar: bool = True) -> np.ndarray:
+                    batchSizeArg: int = batchSize,
+                    showProgressBar: bool = True) -> np.ndarray:
         embeddings = self.model.encode(
             corpusTexts,
-            batch_size=batchSize,
+            batch_size=batchSizeArg,
             convert_to_numpy=True,
-            show_progress_bar=show_progress_bar
+            show_progress_bar=showProgressBar
         )
         return embeddings
 
@@ -112,3 +114,66 @@ class BertEmbeddingRepresentation:
             show_progress_bar=False
         )
         return embedding[0]
+        
+# ------------------------------------------------------------------------------------------------
+# Latent Semantic Analysis (LSA) using TF-IDF + TruncatedSVD.
+# Documents and queries are represented in a low-dimensional
+# latent topic space, then compared via cosine similarity.
+# ------------------------------------------------------------------------------------------------
+class LsaRepresentation:
+    def __init__(self, nComponents: int = 100, randomState: int = 42):        
+        self.vectorizer = TfidfVectorizer(
+            stop_words="english",
+            max_features=20000
+        )
+        self.svd = TruncatedSVD(n_components=nComponents, random_state=randomState)
+        self.normalizer = Normalizer(copy=False)
+        self.pipeline = make_pipeline(self.vectorizer, self.svd, self.normalizer)
+        self.documentMatrix = None
+    
+    # ------------------------------------------------------------------------------------------------
+    # Fit TF-IDF + SVD pipeline and store the document-topic matrix.
+    # ------------------------------------------------------------------------------------------------
+    def fitDocuments(self, corpusTexts: List[str]) -> None:
+        self.documentMatrix = self.pipeline.fit_transform(corpusTexts)
+    
+    # ------------------------------------------------------------------------------------------------
+    # Encode a query into the same latent topic space. Returns a 2D array (1 * nComponents).
+    # ------------------------------------------------------------------------------------------------
+    def encodeQuery(self, queryText: str) -> np.ndarray:
+        return self.pipeline.transform([queryText])
+        
+
+# ------------------------------------------------------------------------------------------------
+# Latent Dirichlet Allocation (LDA) using CountVectorizer.
+# Each document/query is represented as a topic-distribution vector.
+# ------------------------------------------------------------------------------------------------
+class LdaRepresentation:
+    def __init__(self, nTopics: int = 50, randomState: int = 42):
+        self.countVectorizer = CountVectorizer(
+            stop_words="english",
+            max_features=20000
+        )
+        self.ldaModel = LatentDirichletAllocation(
+            n_components=nTopics,
+            random_state=randomState,
+            learning_method="batch"
+        )
+        self.documentMatrix = None
+    
+    # ------------------------------------------------------------------------------------------------
+    # Fit CountVectorizer + LDA and store document-topic distributions.
+    # ------------------------------------------------------------------------------------------------
+    def fitDocuments(self, corpusTexts: List[str]) -> None:
+        countMatrix = self.countVectorizer.fit_transform(corpusTexts)
+        self.documentMatrix = self.ldaModel.fit_transform(countMatrix)
+    
+    # ------------------------------------------------------------------------------------------------
+    # Encode a query into a topic-distribution vector (1 * nTopics).
+    # ------------------------------------------------------------------------------------------------
+    def encodeQuery(self, queryText: str) -> np.ndarray:
+        countVec = self.countVectorizer.transform([queryText])
+        topicDist = self.ldaModel.transform(countVec)
+        return topicDist
+        
+        

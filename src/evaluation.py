@@ -6,7 +6,7 @@ from sklearn.manifold import TSNE
 import os
 
 from search_engine import SemanticSearchEngine
-from config import PLOT_COLORS, SAVE_EMBEDDINGS_VISUALIZATION, RESULTS_DIR, EMBEDDING_MODEL_NAMES
+from config import plotColors, saveEmbeddingsVisualization, resultsDir, embeddingModelNames
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -14,10 +14,11 @@ from config import PLOT_COLORS, SAVE_EMBEDDINGS_VISUALIZATION, RESULTS_DIR, EMBE
 # Input: none. Output: creates directory structure and returns full path to results folder.
 # ----------------------------------------------------------------------------------------------------
 def ensureResultsDirectory() -> str:
-    if not os.path.exists(RESULTS_DIR):
-        os.makedirs(RESULTS_DIR)
-        print(f"Info: Created results directory: {RESULTS_DIR}")
-    return RESULTS_DIR
+    if not os.path.exists(resultsDir):
+        os.makedirs(resultsDir)
+        print(f"Info: Created results directory: {resultsDir}")
+    return resultsDir
+
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -27,19 +28,20 @@ def ensureResultsDirectory() -> str:
 # ----------------------------------------------------------------------------------------------------
 def runFullEvaluation(searchEngine: SemanticSearchEngine, 
                      total_fetched: int, duplicates_removed: int) -> Dict[str, Dict[int, float]]:
-    results_dir = ensureResultsDirectory()    
+    resultsDirLocal = ensureResultsDirectory()   
     results = {}
-    
-    # Evaluate traditional models
-    for modelType in ["tfidf", "bm25"]:
+
+    # Evaluate traditional + topic-model baselines
+    for modelType in ["tfidf", "bm25", "lsa", "lda"]:
         print(f"\nRunning evaluation for model: {modelType}")
         precisionScores = searchEngine.computePrecisionAtK(modelType=modelType)
         results[modelType] = {int(k): float(v) for k, v in precisionScores.items()}
         for k, score in precisionScores.items():
             print(f"Precision@{k}: {score:.4f}")
 
+
     # Evaluate all BERT models
-    for modelKey in EMBEDDING_MODEL_NAMES.keys():
+    for modelKey in embeddingModelNames.keys():
         print(f"\nRunning evaluation for BERT model: {modelKey}")
         precisionScores = searchEngine.computePrecisionAtK(modelType=modelKey)
         results[modelKey] = {int(k): float(v) for k, v in precisionScores.items()}
@@ -47,29 +49,29 @@ def runFullEvaluation(searchEngine: SemanticSearchEngine,
             print(f"Precision@{k}: {score:.4f}")
 
     # Save all results in the results directory
-    evaluation_json_path = os.path.join(results_dir, "evaluation_results.json")
-    precision_plot_path = os.path.join(results_dir, "precision_at_k.png")
-    precision_summary_path = os.path.join(results_dir, "precision_at_k_summary.png")
-    model_comparison_path = os.path.join(results_dir, "model_comparison.png")
+    evaluationJsonPath = os.path.join(resultsDirLocal, "evaluation_results.json")
+    precisionPlotPath = os.path.join(resultsDirLocal, "precision_at_k.png")
+    precisionSummaryPath = os.path.join(resultsDirLocal, "precision_at_k_summary.png")
+    modelComparisonPath = os.path.join(resultsDirLocal, "model_comparison.png")
     
-    saveEvaluationResultsToJson(results, evaluation_json_path)
-    plotPrecisionAtK(results, precision_plot_path)
-    plotPrecisionAtKSummary(results, kValue=10, outputPath=precision_summary_path)
-    plotModelComparison(results, model_comparison_path)
+    saveEvaluationResultsToJson(results, evaluationJsonPath)
+    plotPrecisionAtK(results, precisionPlotPath)
+    plotPrecisionAtKSummary(results, kValue=10, outputPath=precisionSummaryPath)
+    plotModelComparison(results, modelComparisonPath)
     
-    if SAVE_EMBEDDINGS_VISUALIZATION and searchEngine.bertEmbeddings:
-        embedding_plot_path = os.path.join(results_dir, "embedding_visualization.png")
-        category_plot_path = os.path.join(results_dir, "category_distribution.png")
-        summary_plot_path = os.path.join(results_dir, "corpus_summary.png")
+    if saveEmbeddingsVisualization and searchEngine.bertEmbeddings:
+        embeddingPlotPath = os.path.join(resultsDirLocal, "embedding_visualization.png")
+        categoryPlotPath = os.path.join(resultsDirLocal, "category_distribution.png")
+        summaryPlotPath = os.path.join(resultsDirLocal, "corpus_summary.png")
         
-        plotCorpusSummary(searchEngine.papers, total_fetched, duplicates_removed, summary_plot_path)
-        plotEmbeddingVisualization(searchEngine, embedding_plot_path)
-        plotCategoryDistribution(searchEngine.papers, category_plot_path)
+        plotCorpusSummary(searchEngine.papers, total_fetched, duplicates_removed, summaryPlotPath)
+        plotEmbeddingVisualization(searchEngine, embeddingPlotPath)
+        plotCategoryDistribution(searchEngine.papers, categoryPlotPath)
 
-    print(f'\nInfo: Saved evaluation results to "{evaluation_json_path}".')
-    print(f'Info: Saved Precision@K plot to "{precision_plot_path}".')
-    print(f'Info: Saved Precision@K summary plot to "{precision_summary_path}".')
-    print(f'Info: Saved model comparison plot to "{model_comparison_path}".')
+    print(f'\nInfo: Saved evaluation results to "{evaluationJsonPath}".')
+    print(f'Info: Saved Precision@K plot to "{precisionPlotPath}".')
+    print(f'Info: Saved Precision@K summary plot to "{precisionSummaryPath}".')
+    print(f'Info: Saved model comparison plot to "{modelComparisonPath}".')
 
     return results
 
@@ -98,7 +100,7 @@ def plotPrecisionAtK(results: Dict[str, Dict[int, float]],
         kValues = sorted(results[modelName].keys())
         precisions = [results[modelName][k] for k in kValues]
         plt.plot(kValues, precisions, marker="o", label=modelName.upper(), 
-                color=PLOT_COLORS.get(modelName, "black"), linewidth=2, markersize=8)
+                color=plotColors.get(modelName, "black"), linewidth=2, markersize=8)
 
     plt.xlabel("K", fontsize=12)
     plt.ylabel("Precision@K", fontsize=12)
@@ -309,7 +311,7 @@ def plotPrecisionAtKSummary(results: Dict[str, Dict[int, float]],
     xPositions = np.arange(len(modelNames))
 
     # Use configured colors when available, otherwise default to gray
-    barColors = [PLOT_COLORS.get(name.lower(), "gray") for name in modelNames]
+    barColors = [plotColors.get(name.lower(), "gray") for name in modelNames]
 
     bars = plt.bar(xPositions, precisionValues, color=barColors, alpha=0.85, edgecolor="black")
     plt.xticks(xPositions, modelNames, fontsize=11)
@@ -354,7 +356,7 @@ def plotModelComparison(results: Dict[str, Dict[int, float]],
     for model in models:
         scores = [results[model][k] for k in k_values]
         ax1.plot(k_values, scores, marker='o', linewidth=2, markersize=6,
-                label=model.upper(), color=PLOT_COLORS.get(model, 'gray'))
+                label=model.upper(), color=plotColors.get(model, 'gray'))
     
     ax1.set_xlabel('K', fontsize=12)
     ax1.set_ylabel('Precision@K', fontsize=12)
@@ -374,7 +376,7 @@ def plotModelComparison(results: Dict[str, Dict[int, float]],
             precision_values.append(results[model][k_comparison])
     
     bars = ax2.bar(model_names, precision_values, 
-                   color=[PLOT_COLORS.get(name.lower(), 'gray') for name in model_names],
+                   color=[plotColors.get(name.lower(), 'gray') for name in model_names],
                    alpha=0.7, edgecolor='black')
     
     ax2.set_ylabel(f'Precision@{k_comparison}', fontsize=12)
@@ -452,7 +454,6 @@ def plotInteractiveSearchResults(query: str,
     # Save the plot
     plt.savefig(outputPath, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"Info: Saved interactive search results plot to {outputPath}")
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -524,7 +525,6 @@ def plotMultiModelSearchResults(query: str,
     plt.tight_layout()
     plt.savefig(outputPath, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"Info: Saved multi-model search results comparison to {outputPath}")
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -587,7 +587,6 @@ def plotMultiModelHeatmap(query: str,
     plt.tight_layout()
     plt.savefig(outputPath, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"Info: Saved multi-model heatmap to {outputPath}")
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -649,8 +648,6 @@ def exportSearchResultsToExcel(query: str,
                 'Results_Per_Model': 10
             }])
             query_info.to_excel(writer, sheet_name='Query_Info', index=False)
-        
-        print(f"Info: Exported search results to Excel: {outputPath}")
         
     except ImportError:
         print("Warning: pandas or openpyxl not installed. Cannot export to Excel.")

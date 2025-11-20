@@ -18,26 +18,34 @@ absl.logging.set_verbosity(absl.logging.ERROR)
 # ----------------------------------------------------------------------------------------------------
 # Extended configuration for arXiv queries, model selection, batch sizes, and evaluation settings.
 # ----------------------------------------------------------------------------------------------------
-ARXIV_QUERIES = [
+arxivQueries = [
     "cat:cs.IR", "cat:cs.LG", "cat:cs.AI", "cat:cs.CL", "cat:cs.CV",
     "cat:cs.NE", "cat:stat.ML", "cat:physics.comp-ph", "cat:math.NA"
 ]
 
-DATASET_PATH = "arxiv-metadata-oai-snapshot.json"
-MAX_RESULTS_PER_QUERY = 300
-EMBEDDING_MODEL_NAMES = {
+datasetPath = "arxiv-metadata-oai-snapshot.json"
+maxResultsPerQuery = 300
+embeddingModelNames = {
     "minilm": "sentence-transformers/all-MiniLM-L6-v2",
-    "mpnet": "sentence-transformers/all-mpnet-base-v2", 
+    "mpnet": "sentence-transformers/all-mpnet-base-v2",
     "multiqa": "sentence-transformers/multi-qa-mpnet-base-dot-v1"
 }
-DEFAULT_EMBEDDING_MODEL = "minilm"
-BATCH_SIZE = 32
-TOP_K_RETRIEVAL = 10
-PRECISION_AT_K_LIST = [1, 3, 5, 10]
-USE_FAISS = True
-RANDOM_SEED = 42
-EVALUATION_SAMPLE_SIZE = 300                                            # Number of papers to use for evaluation
-PLOT_COLORS = {"tfidf": "blue", "bm25": "green", "bert": "red", "mpnet": "purple", "multiqa": "orange"}
-SAVE_EMBEDDINGS_VISUALIZATION = True
-MAX_TOTAL_PAPERS = 2500
-RESULTS_DIR = "search_results"
+defaultEmbeddingModel = "minilm"
+batchSize = 32
+topKRetrieval = 10
+precisionAtKList = [1, 3, 5, 10]
+useFaiss = True
+randomSeed = 42
+evaluationSampleSize = 300
+saveEmbeddingsVisualization = True
+maxTotalPapers = 2500
+resultsDir = "search_results"
+plotColors = {
+    "tfidf": "blue",
+    "bm25": "green",
+    "bert": "red",
+    "mpnet": "purple",
+    "multiqa": "orange",
+    "lsa": "brown",
+    "lda": "cyan"
+}

@@ -8,7 +8,7 @@ import json
 from data_loader import buildCorpusFromArxiv, buildCorpusFromJson
 from search_engine import SemanticSearchEngine
 from evaluation import runFullEvaluation, ensureResultsDirectory
-from config import TOP_K_RETRIEVAL, RESULTS_DIR, EMBEDDING_MODEL_NAMES
+from config import topKRetrieval, resultsDir, embeddingModelNames
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -28,13 +28,14 @@ def parseArguments():
         "--model",
         type=str,
         default="minilm",
-        choices=["tfidf", "bm25"] + list(EMBEDDING_MODEL_NAMES.keys()),
+        choices=["tfidf", "bm25", "lsa", "lda"] + list(embeddingModelNames.keys()),
         help="Model type to use for interactive search."
     )
+
     parser.add_argument(
         "--topk",
         type=int,
-        default=TOP_K_RETRIEVAL,
+        default=topKRetrieval,
         help="Number of results to return for interactive query."
     )
     parser.add_argument(
@@ -76,15 +77,15 @@ def saveSearchToLog(query: str,
                    searchEngine,
                    modelType: str, 
                    topK: int):
-    results_dir = ensureResultsDirectory()
-    log_file = os.path.join(results_dir, "search_log.json")
+    resultsDirLocal = ensureResultsDirectory()
+    logFile = os.path.join(resultsDirLocal, "search_log.json")
     
     # Get results for the specified model
-    single_model_results = searchEngine.searchByAbstract(
+    singleModelResults = searchEngine.searchByAbstract(
         queryAbstract=query, modelType=modelType, topK=topK
     )
     
-    log_entry = {
+    logEntry = {
         "timestamp": datetime.now().isoformat(),
         "query": query,
         "model_type": modelType,
@@ -97,56 +98,50 @@ def saveSearchToLog(query: str,
                 "category": paper["category"],
                 "score": float(score)
             }
-            for idx, (paper, score) in enumerate(single_model_results[:topK])
+            for idx, (paper, score) in enumerate(singleModelResults[:topK])
         ]
     }
     
     # Save to log file
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(log_entry) + "\n")
+    with open(logFile, "a", encoding="utf-8") as f:
+        f.write(json.dumps(logEntry) + "\n")
     
     # Generate single model plot
-    single_plot_filename = f"search_results_{modelType}.png"
-    single_plot_path = os.path.join(results_dir, single_plot_filename)
+    singlePlotFilename = f"search_results_{modelType}.png"
+    singlePlotPath = os.path.join(resultsDirLocal, singlePlotFilename)
     
     from evaluation import plotInteractiveSearchResults
-    plotInteractiveSearchResults(query, single_model_results[:topK], modelType, single_plot_path)
+    plotInteractiveSearchResults(query, singleModelResults[:topK], modelType, singlePlotPath)
     
-    # Generate multi-model comparison plots
-    multi_plot_filename = "search_comparison_all_models.png"
-    multi_plot_path = os.path.join(results_dir, multi_plot_filename)
+    multiPlotFilename = "search_comparison_all_models.png"
+    multiPlotPath = os.path.join(resultsDirLocal, multiPlotFilename)
+    heatmapFilename = "search_comparison_heatmap.png"
+    heatmapPath = os.path.join(resultsDirLocal, heatmapFilename)
+    excelFilename = "search_results_comparison.xlsx"
+    excelPath = os.path.join(resultsDirLocal, excelFilename)
     
-    heatmap_filename = "search_comparison_heatmap.png"
-    heatmap_path = os.path.join(results_dir, heatmap_filename)
-    
-    # Generate Excel export
-    excel_filename = "search_results_comparison.xlsx"
-    excel_path = os.path.join(results_dir, excel_filename)
-    
-    # Get results from all BERT models for comparison
-    from config import EMBEDDING_MODEL_NAMES
-    all_model_results = {}
+    allModelResults = {}
     
     # Include the current model
-    all_model_results[modelType] = single_model_results[:topK]
+    allModelResults[modelType] = singleModelResults[:topK]
     
     # Get results from other BERT models
-    for bert_model in EMBEDDING_MODEL_NAMES.keys():
-        if bert_model != modelType:
+    for bertModel in embeddingModelNames.keys():
+        if bertModel != modelType:
             try:
-                model_results = searchEngine.searchByAbstract(
-                    queryAbstract=query, modelType=bert_model, topK=topK
+                modelResults = searchEngine.searchByAbstract(
+                    queryAbstract=query, modelType=bertModel, topK=topK
                 )
-                all_model_results[bert_model] = model_results[:topK]
+                allModelResults[bertModel] = modelResults[:topK]
             except Exception as e:
-                print(f"Warning: Could not get results for {bert_model}: {e}")
+                print(f"Warning: Could not get results for {bertModel}: {e}")
     
     from evaluation import plotMultiModelSearchResults, plotMultiModelHeatmap, exportSearchResultsToExcel
-    plotMultiModelSearchResults(query, all_model_results, multi_plot_path)
-    plotMultiModelHeatmap(query, all_model_results, heatmap_path)
-    exportSearchResultsToExcel(query, all_model_results, excel_path)
+    plotMultiModelSearchResults(query, allModelResults, multiPlotPath)
+    plotMultiModelHeatmap(query, allModelResults, heatmapPath)
+    exportSearchResultsToExcel(query, allModelResults, excelPath)
     
-    return single_plot_path, multi_plot_path, heatmap_path, excel_path
+    return singlePlotPath, multiPlotPath, heatmapPath, excelPath
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -215,13 +210,13 @@ def main():
                 topK=args.topk
             )
             prettyPrintResults(results, args.topk)
-            single_plot_path, multi_plot_path, heatmap_path, excel_path = saveSearchToLog(
+            singlePlotPath, multiPlotPath, heatmapPath, excel_path = saveSearchToLog(
                 userQuery, searchEngine, args.model, args.topk
             )
             print(f"Info: Search saved to log.")
-            print(f"Info: Single model results plot saved to '{single_plot_path}'.")
-            print(f"Info: Multi-model comparison plot saved to '{multi_plot_path}'.")
-            print(f"Info: Multi-model heatmap saved to '{heatmap_path}'.")
+            print(f"Info: Single model results plot saved to '{singlePlotPath}'.")
+            print(f"Info: Multi-model comparison plot saved to '{multiPlotPath}'.")
+            print(f"Info: Multi-model heatmap saved to '{heatmapPath}'.")
             print(f"Info: Detailed results exported to Excel: '{excel_path}'.")
             
         except Exception as e:

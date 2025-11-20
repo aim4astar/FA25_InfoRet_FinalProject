@@ -8,14 +8,14 @@ import time
 
 import arxiv
 from config import (
-    ARXIV_QUERIES,
-    MAX_RESULTS_PER_QUERY,
-    RANDOM_SEED,
-    MAX_TOTAL_PAPERS,
-    DATASET_PATH,
+    arxivQueries,
+    maxResultsPerQuery,
+    randomSeed,
+    maxTotalPapers,
+    datasetPath,
 )
 
-random.seed(RANDOM_SEED)
+random.seed(randomSeed)
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -116,11 +116,11 @@ def buildCorpusFromArxiv(queries: List[str] = None,
                             maxResultsPerQuery: int = None,
                             maxPapers: int = None) -> Dict:
     if queries is None:
-        queries = ARXIV_QUERIES
+        queries = arxivQueries
     if maxResultsPerQuery is None:
-        maxResultsPerQuery = MAX_RESULTS_PER_QUERY
+        maxResultsPerQuery = maxResultsPerQuery
     if maxPapers is None:
-        maxPapers = MAX_TOTAL_PAPERS
+        maxPapers = maxTotalPapers
 
     allPapers = []
     print(f"Starting arXiv data collection with {len(queries)} queries...")
@@ -188,16 +188,16 @@ def buildCorpusFromArxiv(queries: List[str] = None,
 # Loads papers from a local arXiv metadata JSON snapshot (one JSON object per line),
 # applies basic filtering & preprocessing, and returns a corpus_stats dict.
 # ----------------------------------------------------------------------------------------------------
-def buildCorpusFromJson(dataset_path: str = DATASET_PATH,
+def buildCorpusFromJson(datasetPathArg: str = datasetPath,
                         maxPapers: int = None) -> Dict:
                             
-    if not os.path.isfile(dataset_path):
+    if not os.path.isfile(datasetPathArg):
         raise FileNotFoundError(
-            f"Dataset file not found at '{dataset_path}'. "
+            f"Dataset file not found at '{datasetPathArg}'. "
             f"Please place arxiv-metadata-oai-snapshot.json in the project folder."
         )
 
-    print(f"Loading corpus from local JSON: {dataset_path}")
+    print(f"Loading corpus from local JSON: {datasetPathArg}")
     if maxPapers:
         print(f"Maximum papers to load: {maxPapers}")
     else:
@@ -208,7 +208,7 @@ def buildCorpusFromJson(dataset_path: str = DATASET_PATH,
     duplicate_count = 0
     total_lines = 0
 
-    with open(dataset_path, "r", encoding="utf-8") as f:
+    with open(datasetPathArg, "r", encoding="utf-8") as f:
         for line in f:
             total_lines += 1
 

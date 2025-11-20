@@ -2,9 +2,14 @@ from typing import List, Dict, Tuple
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import faiss
-
-from text_representation import TfIdfRepresentation, Bm25Representation, BertEmbeddingRepresentation
-from config import TOP_K_RETRIEVAL, PRECISION_AT_K_LIST, USE_FAISS, EVALUATION_SAMPLE_SIZE, EMBEDDING_MODEL_NAMES
+from config import topKRetrieval, precisionAtKList, useFaiss, evaluationSampleSize, embeddingModelNames
+from text_representation import (
+    TfIdfRepresentation,
+    Bm25Representation,
+    BertEmbeddingRepresentation,
+    LsaRepresentation,
+    LdaRepresentation
+)
 
 
 class SemanticSearchEngine:
@@ -14,13 +19,17 @@ class SemanticSearchEngine:
 
         self.tfIdfRep = TfIdfRepresentation()
         self.bm25Rep = Bm25Representation()
+        self.lsaRep = LsaRepresentation()
+        self.ldaRep = LdaRepresentation()
         self.bertReps = {
-            model_key: BertEmbeddingRepresentation(model_key) 
-            for model_key in EMBEDDING_MODEL_NAMES.keys()
+            modelKey: BertEmbeddingRepresentation(modelKey)
+            for modelKey in embeddingModelNames.keys()
         }
 
         self.tfIdfMatrix = None
         self.bm25Ready = False
+        self.lsaMatrix = None
+        self.ldaMatrix = None
         self.bertEmbeddings = {}
         self.faissIndices = {}
 
@@ -36,6 +45,14 @@ class SemanticSearchEngine:
         print("Building BM25 index...")
         self.bm25Rep.fitDocuments(self.corpusTexts)
         self.bm25Ready = True
+        
+        print("Building LSA index (TF-IDF + SVD).")
+        self.lsaRep.fitDocuments(self.corpusTexts)
+        self.lsaMatrix = self.lsaRep.documentMatrix
+
+        print("Building LDA index (topic distributions).")
+        self.ldaRep.fitDocuments(self.corpusTexts)
+        self.ldaMatrix = self.ldaRep.documentMatrix
 
         # Build embeddings for all BERT models
         for modelKey, bertRep in self.bertReps.items():
@@ -43,11 +60,11 @@ class SemanticSearchEngine:
             show_progress = (modelKey == list(self.bertReps.keys())[0])
             self.bertEmbeddings[modelKey] = bertRep.encodeDocuments(
                 self.corpusTexts, 
-                show_progress_bar=show_progress
+                showProgressBar=show_progress
             )
             self.bertEmbeddings[modelKey] = self._l2Normalize(self.bertEmbeddings[modelKey])
 
-            if USE_FAISS:
+            if useFaiss:
                 print(f"Building FAISS index for {modelKey.upper()}...")
                 dim = self.bertEmbeddings[modelKey].shape[1]
                 self.faissIndices[modelKey] = faiss.IndexFlatIP(dim)
@@ -67,17 +84,22 @@ class SemanticSearchEngine:
     # Input: query text, model type string, and K. Output: list of (paper dict, score) tuples.
     # ------------------------------------------------------------------------------------------------
     def searchByAbstract(self, queryAbstract: str,
-                         modelType: str = "bert",
-                         topK: int = TOP_K_RETRIEVAL) -> List[Tuple[Dict, float]]:
+                     modelType: str = "bert",
+                     topK: int = topKRetrieval) -> List[Tuple[Dict, float]]:
         if modelType == "tfidf":
             return self._searchWithTfIdf(queryAbstract, topK)
         elif modelType == "bm25":
             return self._searchWithBm25(queryAbstract, topK)
+        elif modelType == "lsa":
+            return self._searchWithLsa(queryAbstract, topK)
+        elif modelType == "lda":
+            return self._searchWithLda(queryAbstract, topK)
         elif modelType in self.bertReps:
             return self._searchWithBert(queryAbstract, modelType, topK)
         else:
             # Default to minilm if model type not specified
             return self._searchWithBert(queryAbstract, "minilm", topK)
+
 
     # ------------------------------------------------------------------------------------------------
     # Performs TF-IDF based cosine similarity search between the query and document matrix.
@@ -101,6 +123,32 @@ class SemanticSearchEngine:
         topIndices = np.argsort(scores)[::-1][:topK]
         results = [(self.papers[i], float(scores[i])) for i in topIndices]
         return results
+        
+    # ------------------------------------------------------------------------------------------------
+    # Performs LSA-based search: cosine similarity in latent semantic space.
+    # Input: query text and K. Output: list of top-K papers with similarity scores.
+    # ------------------------------------------------------------------------------------------------
+    def _searchWithLsa(self, queryAbstract: str,
+                       topK: int) -> List[Tuple[Dict, float]]:
+        if self.lsaMatrix is None:
+            raise ValueError("LSA index not built. Call buildAllIndices() first.")
+        queryVec = self.lsaRep.encodeQuery(queryAbstract)                                                               #shape (1, d)
+        similarities = cosine_similarity(queryVec, self.lsaMatrix).flatten()
+        topIndices = np.argsort(similarities)[::-1][:topK]
+        return [(self.papers[i], float(similarities[i])) for i in topIndices]
+
+    # ------------------------------------------------------------------------------------------------
+    # Performs LDA-based search: cosine similarity between topic distributions.
+    # Input: query text and K. Output: list of top-K papers with similarity scores.
+    # ------------------------------------------------------------------------------------------------
+    def _searchWithLda(self, queryAbstract: str,
+                       topK: int) -> List[Tuple[Dict, float]]:
+        if self.ldaMatrix is None:
+            raise ValueError("LDA index not built. Call buildAllIndices() first.")
+        queryTopicDist = self.ldaRep.encodeQuery(queryAbstract)                                                         #shape (1, K_topics)
+        similarities = cosine_similarity(queryTopicDist, self.ldaMatrix).flatten()
+        topIndices = np.argsort(similarities)[::-1][:topK]
+        return [(self.papers[i], float(similarities[i])) for i in topIndices]
 
     # ------------------------------------------------------------------------------------------------
     # Performs BERT embedding based search using FAISS if available, otherwise dot-product search.
@@ -135,12 +183,12 @@ class SemanticSearchEngine:
     # Input: model type, list of K values, and maximum number of queries. Output: dict of K to score.
     # ------------------------------------------------------------------------------------------------
     def computePrecisionAtK(self, modelType: str = "bert",
-                            kList: List[int] = None,
-                            maxQueries: int = None) -> Dict[int, float]:
+                        kList: List[int] = None,
+                        maxQueries: int = None) -> Dict[int, float]:
         if kList is None:
-            kList = PRECISION_AT_K_LIST
+            kList = precisionAtKList
         if maxQueries is None:
-            maxQueries = min(EVALUATION_SAMPLE_SIZE, len(self.papers))
+            maxQueries = min(evaluationSampleSize, len(self.papers))
 
         numQueries = min(maxQueries, len(self.papers))
         queryIndices = list(range(numQueries))
@@ -176,8 +224,6 @@ class SemanticSearchEngine:
                               if paper["category"] == queryCategory)
                 precisionK = matches / k
                 precisionSums[k] += precisionK
-
-        print(f"   Progress: {numQueries}/{numQueries} queries evaluated (100%) - COMPLETED")
         
         precisionAtK = {k: precisionSums[k] / numQueries for k in kList}
         return precisionAtK
