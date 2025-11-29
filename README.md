@@ -60,7 +60,7 @@ Generated plots include:
 - Corpus summary statistics  
 - Single-model search results plot  
 
-All plots are saved in the `results/` directory.
+All plots are saved in the `search_results/` directory.
 
 ---
 
@@ -98,7 +98,8 @@ project/
 ├── main.py
 │
 ├── environment.yml
-└── results/
+├── test_semantic_search.py
+└── search_results/
 ```
 
 ---
