@@ -1,131 +1,78 @@
-# Semantic Similarity Search and Ranking of Research Papers Using arXiv Abstract Data
-### TF–IDF • BM25 • LSA • LDA • MiniLM • MPNet • MultiQA • FAISS
+# Semantic Similarity Search and Ranking for arXiv Research Papers
+### Using TF–IDF, BM25, LSA, LDA, MiniLM, MPNet, MultiQA, and FAISS
 
-This project implements a comprehensive **semantic similarity search system** for arXiv research papers, combining classical IR techniques with modern neural embedding models. Inspired by the challenges described in our report :contentReference[oaicite:1]{index=1}, the system retrieves research papers based on **conceptual meaning**, not just keyword overlap.
+This project implements a full semantic search system for arXiv research papers using their abstracts. It compares traditional information-retrieval techniques (TF–IDF, BM25, topic models) with state-of-the-art transformer-based embedding models (MiniLM, MPNet, MultiQA). The system evaluates how well each model retrieves papers with similar meaning and provides an interactive semantic search interface.
 
-The system supports **dual data acquisition modes**, full **text preprocessing**, seven **retrieval models**, FAISS-accelerated similarity search, and a complete **Precision@K evaluation pipeline**. It also provides an **interactive semantic search interface**.
+The pipeline includes dataset handling, preprocessing, vectorization, similarity search (FAISS), evaluation using Precision@K, and result visualization.
 
 ---
 
-## 🚀 Key Features
+## 🚀 What This Project Does
 
-### 🔍 Multi-Model Retrieval (7 Models)
-This framework compares **seven distinct representation techniques**, consistent with the models discussed in our mid-project report :contentReference[oaicite:2]{index=2}:
+### 🔍 1. Loads and Processes the arXiv Metadata Dataset
+- Automatically downloads the dataset via **KaggleHub** if not found locally  
+- Cleans and normalizes abstracts  
+- Removes LaTeX, URLs, special characters, and duplicates  
+- Extracts titles, categories, and abstract text  
+
+---
+
+### 📚 2. Creates Multiple Text Representations (7 Models)
 
 | Category | Models | Description |
 |----------|--------|-------------|
-| **Lexical** | TF–IDF, BM25 | Keyword-based, sparse representations |
-| **Topic Models** | LSA, LDA | Latent semantic structure extraction |
-| **Neural Embeddings** | MiniLM, MPNet, MultiQA | Transformer-based dense embeddings (384–768 dims), state-of-the-art semantic search |
+| **Lexical Models** | TF–IDF, BM25 | Keyword-based sparse vectors |
+| **Topic Models** | LSA, LDA | Latent semantic topic structure |
+| **Transformer Embeddings** | MiniLM, MPNet, MultiQA | Dense contextual semantic vectors |
+
+These models work together to compare keyword relevance vs. conceptual understanding.
 
 ---
 
-### ⚡ High-Performance Similarity Search (FAISS)
+### ⚡ 3. Performs High-Speed Similarity Search (FAISS)
 
-- Uses **FAISS IndexFlatIP** for fast inner-product search  
-- Supports datasets with **hundreds of thousands of embeddings**  
-- Automatically falls back to cosine similarity when FAISS is unavailable  
-- Embeddings automatically **L2-normalize** for IP-cosine equivalence  
-
-This matches the scalable search discussion in Section II-D of the report :contentReference[oaicite:3]{index=3}.
+- Embeddings indexed using **FAISS IndexFlatIP** for efficient nearest-neighbor search  
+- Uses inner-product (cosine-equivalent) similarity  
+- Falls back to sklearn cosine similarity when FAISS isn't available  
+- Supports fast search even on thousands of abstracts  
 
 ---
 
-### 🧠 Automatic Device Selection
+### 📊 4. Evaluates Models Using Precision@K
 
-Sentence-BERT models automatically select:
+The evaluation tests how often each model returns papers from the **same arXiv category** as the query.
 
-- **CUDA GPU** (if available)  
-- **CPU** fallback  
+Metrics:
 
-Mirroring the neural framework described in Section III-C :contentReference[oaicite:4]{index=4}.
+- Precision@1  
+- Precision@3  
+- Precision@5  
+- Precision@10  
 
----
-
-### 📥 Automatic Dataset Handling (KaggleHub)
-
-Consistent with the “dual data acquisition pipeline” described in Sections III–IV :contentReference[oaicite:5]{index=5}:
-
-- If local dataset file:
-
-```
-arxiv-metadata-oai-snapshot.json
-```
-
-is missing, the system **automatically downloads** the latest dataset from:
-
-```
-Cornell-University/arxiv  (via kagglehub)
-```
-
-- No API key required  
-- Creates a local copy for reproducibility  
-- Provides the same JSONL format used in the report’s methodology  
-
----
-
-### 🌐 Optional arXiv API Mode
-
-The system can alternatively pull papers live from the arXiv API:
-
-```bash
-python main.py --use-arxiv-api
-```
-
-Supports all categories listed in the report (cs.LG, cs.AI, cs.CL, stat.ML, math.NA, etc.) :contentReference[oaicite:6]{index=6}.
-
----
-
-## 🧹 Text Preprocessing Pipeline
-
-Based on the pipeline described in Section IV-A of the report :contentReference[oaicite:7]{index=7}, the system performs:
-
-- Removal of LaTeX expressions & equations  
-- URL & reference cleaning  
-- Contraction expansion  
-- Academic boilerplate filtering  
-- Punctuation normalization  
-- Lower-casing  
-- Duplicate detection based on arXiv ID  
-
-This ensures clean, semantically meaningful text for all models.
-
----
-
-## 📊 Evaluation: Precision@K
-
-Implements category-based evaluation using:
-
-- P@1  
-- P@3  
-- P@5  
-- P@10  
-
-As described in Section IV-C of the report :contentReference[oaicite:8]{index=8}.
-
-Generated evaluation plots include:
+Generated plots include:
 
 - Precision@K line plot  
-- Precision@10 summary bar chart  
-- Multi-model similarity heatmap  
-- Multi-model comparison (line plot)  
+- Precision@10 bar chart  
+- Multi-model comparison line plot  
+- Multi-model heatmap  
 - Embedding t-SNE visualization  
 - Category distribution plot  
-- Corpus summary plot  
+- Corpus summary statistics  
+- Single-model search results plot  
 
-All redundant/duplicate plots (e.g., earlier bar comparison) have been removed.
+All plots are saved in the `results/` directory.
 
 ---
 
-## 🎛 Interactive Search Mode
+### 🎛 5. Interactive Semantic Search
 
-After evaluation finishes, the system enters:
+After evaluation, the system enters an interactive mode:
 
 ```
 Enter an abstract or description:
 ```
 
-Returns for each result:
+It returns the top-ranked research papers with:
 
 - Rank  
 - Similarity score  
@@ -134,9 +81,11 @@ Returns for each result:
 - Category  
 - Abstract snippet  
 
+This allows users to test the semantic capabilities of each model.
+
 ---
 
-## 📁 Folder Structure
+## 📁 Project Structure
 
 ```
 project/
@@ -149,7 +98,7 @@ project/
 ├── main.py
 │
 ├── environment.yml
-└── search_results/
+└── results/
 ```
 
 ---
@@ -157,7 +106,6 @@ project/
 ## ⚙️ Installation
 
 ### 1. Create the Conda environment
-(Updated to reflect modern dependencies)
 
 ```bash
 conda env create -f environment.yml
@@ -181,19 +129,23 @@ python -c "import torch, faiss, sentence_transformers, kagglehub; print('Environ
 
 ## ▶️ Running the Project
 
-### 1. Full pipeline (evaluation + interactive search)
+### **1. Full pipeline (evaluation + search)**
 
 ```bash
 python main.py
 ```
 
-### 2. Only interactive search
+---
+
+### **2. Only interactive semantic search**
 
 ```bash
 python main.py --no-eval
 ```
 
-### 3. Choose a model
+---
+
+### **3. Choose a retrieval model**
 
 ```bash
 python main.py --model tfidf
@@ -201,13 +153,19 @@ python main.py --model bm25
 python main.py --model bert
 ```
 
-### 4. Limit dataset size (faster development)
+(Use lowercase names as defined in `config.py`.)
+
+---
+
+### **4. Limit number of papers loaded**
 
 ```bash
 python main.py --max-papers 50000
 ```
 
-### 5. Use arXiv API instead of dataset
+---
+
+### **5. Use arXiv API instead of dataset**
 
 ```bash
 python main.py --use-arxiv-api
@@ -215,41 +173,39 @@ python main.py --use-arxiv-api
 
 ---
 
-## 🧪 Running Tests
+## 🧪 Running Unit Tests
 
 ```bash
 python -m unittest test_semantic_search.py
 ```
 
-Tests cover:
+Tests include:
 
-- Preprocessing  
+- Text preprocessing  
 - Device selection  
-- Embedding integrity  
-- Retrieval correctness  
+- Embedding output checks  
+- Search engine behavior  
 
 ---
 
-## 🔧 Windows Note (Important)
+## 🛠 Windows Notes
 
-To prevent HuggingFace symlink errors (`WinError 1314`), the system sets:
+To prevent symlink errors during model downloads, the system sets:
 
 ```python
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 ```
 
-included at the top of `text_representation.py`.
+This ensures compatibility with Windows environments.
 
 ---
 
-## 📚 Possible Extensions
+## 💡 Future Improvements
 
-As suggested in Section VII of the report :contentReference[oaicite:9]{index=9}:
-
-- Persist FAISS index  
-- Add reranking models (cross-encoders)  
-- Build a web UI (Flask/FastAPI)  
-- Add embedding-based clustering  
-- Integrate citation graph retrieval  
+- Save FAISS index to disk  
+- Add cross-encoder reranking  
+- Add a UI (Flask/FastAPI)  
+- Create clustering over embeddings  
+- Add citation-graph-based similarity  
 
 ---
