@@ -1,0 +1,22 @@
+name: semantic-search-env
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10
+  - numpy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - scipy
+  - pip
+  - pip:
+      - rank-bm25
+      - sentence-transformers
+      - huggingface_hub
+      - faiss-cpu
+      - torch
+      - kagglehub
+      - arxiv
+      - openpyxl
