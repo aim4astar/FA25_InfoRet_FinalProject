@@ -52,12 +52,10 @@ def runFullEvaluation(searchEngine: SemanticSearchEngine,
     evaluationJsonPath = os.path.join(resultsDirLocal, "evaluation_results.json")
     precisionPlotPath = os.path.join(resultsDirLocal, "precision_at_k.png")
     precisionSummaryPath = os.path.join(resultsDirLocal, "precision_at_k_summary.png")
-    modelComparisonPath = os.path.join(resultsDirLocal, "model_comparison.png")
     
     saveEvaluationResultsToJson(results, evaluationJsonPath)
     plotPrecisionAtK(results, precisionPlotPath)
     plotPrecisionAtKSummary(results, kValue=10, outputPath=precisionSummaryPath)
-    plotModelComparison(results, modelComparisonPath)
     
     if saveEmbeddingsVisualization and searchEngine.bertEmbeddings:
         embeddingPlotPath = os.path.join(resultsDirLocal, "embedding_visualization.png")
@@ -71,8 +69,6 @@ def runFullEvaluation(searchEngine: SemanticSearchEngine,
     print(f'\nInfo: Saved evaluation results to "{evaluationJsonPath}".')
     print(f'Info: Saved Precision@K plot to "{precisionPlotPath}".')
     print(f'Info: Saved Precision@K summary plot to "{precisionSummaryPath}".')
-    print(f'Info: Saved model comparison plot to "{modelComparisonPath}".')
-
     return results
 
 
@@ -332,68 +328,7 @@ def plotPrecisionAtKSummary(results: Dict[str, Dict[int, float]],
     plt.tight_layout()
     plt.savefig(outputPath, dpi=300, bbox_inches="tight", facecolor='white')
     plt.close()
-    print(f"Info: Saved Precision@{kValue} summary bar plot to {outputPath}")       
-    
-
-# ----------------------------------------------------------------------------------------------------
-# Creates a comprehensive comparison plot of all models across different K values.
-# Input: evaluation results dict and output path. Output: PNG comparison plot saved to disk.
-# ----------------------------------------------------------------------------------------------------
-def plotModelComparison(results: Dict[str, Dict[int, float]], 
-                       outputPath: str) -> None:
-    if not results:
-        print("Warning: No evaluation results available for model comparison plot.")
-        return
-
-    # Prepare data
-    k_values = sorted(next(iter(results.values())).keys())
-    models = list(results.keys())
-    
-    # Create subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
-    
-    # Plot 1: Line plot for all K values
-    for model in models:
-        scores = [results[model][k] for k in k_values]
-        ax1.plot(k_values, scores, marker='o', linewidth=2, markersize=6,
-                label=model.upper(), color=plotColors.get(model, 'gray'))
-    
-    ax1.set_xlabel('K', fontsize=12)
-    ax1.set_ylabel('Precision@K', fontsize=12)
-    ax1.set_title('Model Performance Comparison Across Different K Values', fontsize=14)
-    ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    ax1.grid(True, linestyle='--', alpha=0.3)
-    ax1.set_xticks(k_values)
-    
-    # Plot 2: Bar chart for K=10 (or max K if 10 not available)
-    k_comparison = 10 if 10 in k_values else k_values[-1]
-    model_names = []
-    precision_values = []
-    
-    for model in models:
-        if k_comparison in results[model]:
-            model_names.append(model.upper())
-            precision_values.append(results[model][k_comparison])
-    
-    bars = ax2.bar(model_names, precision_values, 
-                   color=[plotColors.get(name.lower(), 'gray') for name in model_names],
-                   alpha=0.7, edgecolor='black')
-    
-    ax2.set_ylabel(f'Precision@{k_comparison}', fontsize=12)
-    ax2.set_title(f'Model Performance at K={k_comparison}', fontsize=14)
-    ax2.tick_params(axis='x', rotation=45)
-    
-    # Add value labels on bars
-    for bar, value in zip(bars, precision_values):
-        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
-                f'{value:.3f}', ha='center', va='bottom', fontsize=10)
-    
-    ax2.grid(True, axis='y', linestyle='--', alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(outputPath, dpi=300, bbox_inches='tight', facecolor='white')
-    plt.close()
-    print(f"Info: Saved model comparison plot to {outputPath}")   
+    print(f"Info: Saved Precision@{kValue} summary bar plot to {outputPath}")    
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -461,69 +396,39 @@ def plotInteractiveSearchResults(query: str,
 # Input: query string, results dictionary (model -> results), and output path. 
 # Output: PNG comparison plot saved to disk.
 # ----------------------------------------------------------------------------------------------------
-def plotMultiModelSearchResults(query: str,
+def plotMultiModelSearchResults(query: str, 
                                resultsDict: Dict[str, List[Tuple[Dict, float]]],
                                outputPath: str) -> None:
     if not resultsDict:
         print("Warning: No results to plot for multi-model search comparison.")
         return
 
-    # Create a single comprehensive plot
-    plt.figure(figsize=(14, 8))
-    
+    # Extract model names and rank positions
     model_keys = list(resultsDict.keys())
-    num_models = len(model_keys)
-    
-    # Define a better color palette
-    colors = ['#2E86AB', '#A23B72', '#F18F01', '#C73E1D', '#3F7CAC']
-    model_colors = {model: colors[i % len(colors)] for i, model in enumerate(model_keys)}
-    
-    # Plot configuration
-    bar_width = 0.15
-    opacity = 0.8
-    index = np.arange(10)  # Assuming top 10 results
-    
-    # Plot bars for each model
-    for i, model_key in enumerate(model_keys):
-        results = resultsDict[model_key][:10]  # Top 10 results
-        if not results:
-            continue
-            
-        scores = [score for paper, score in results]
-        positions = index + i * bar_width
-        
-        bars = plt.bar(positions, scores, bar_width,
-                      alpha=opacity,
-                      color=model_colors[model_key],
-                      label=model_key.upper(),
-                      edgecolor='black',
-                      linewidth=0.5)
-        
-        # Add value labels on top of bars
-        for bar, score in zip(bars, scores):
-            height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'{score:.3f}', ha='center', va='bottom', fontsize=8,
-                    fontweight='bold')
-    
-    # Customize the plot
-    plt.xlabel('Rank Position', fontsize=12, fontweight='bold')
-    plt.ylabel('Similarity Score', fontsize=12, fontweight='bold')
-    plt.title('Multi-Model Semantic Search Comparison\n' + 
-              f'Query: "{query[:80]}{"..." if len(query) > 80 else ""}"', 
-              fontsize=14, fontweight='bold', pad=20)
-    
-    # Set x-axis labels to show rank numbers
-    plt.xticks(index + bar_width * (num_models - 1) / 2, 
-               [f'Rank {i+1}' for i in range(10)], 
-               fontsize=10)
-    
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
-    plt.grid(True, axis='y', linestyle='--', alpha=0.3)
-    plt.ylim(0, 1.1)
-    
+    ranks = np.arange(1, 11)                                                                                #Top 10
+    plt.figure(figsize=(12, 7))
+
+    for model in model_keys:
+        results = resultsDict[model][:10]
+        scores = [score for (_, score) in results]
+        plt.plot(ranks, scores, marker="o", linewidth=2, markersize=6, label=model.upper())
+
+    plt.title(
+        f"Multi-Model Semantic Search Comparison\n"
+        f"Query: \"{query[:80]}{'...' if len(query) > 80 else ''}\"",
+        fontsize=14,
+        pad=20
+    )
+
+    plt.xlabel("Rank Position", fontsize=12)
+    plt.ylabel("Similarity Score", fontsize=12)
+    plt.xticks(ranks)
+    plt.grid(True, linestyle="--", alpha=0.6)
+
+    plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=10)
+
     plt.tight_layout()
-    plt.savefig(outputPath, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(outputPath, dpi=300, bbox_inches="tight", facecolor='white')
     plt.close()
 
 

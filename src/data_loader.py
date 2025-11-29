@@ -3,10 +3,12 @@ import json
 import re
 import string
 import random
-from typing import List, Dict
+import kagglehub
+import shutil
 import time
-
 import arxiv
+
+from typing import List, Dict
 from config import (
     arxivQueries,
     maxResultsPerQuery,
@@ -18,6 +20,18 @@ from config import (
 random.seed(randomSeed)
 
 
+
+# ----------------------------------------------------------------------------------------------------
+# Downloads the arXiv metadata dataset from Kaggle using kagglehub
+# and returns the directory path where the dataset files are stored.
+# ----------------------------------------------------------------------------------------------------
+def downloadArxivDatasetWithKaggleHub() -> str:
+    print("Local dataset not found. Downloading latest dataset from Kaggle via kagglehub...")
+    path = kagglehub.dataset_download("Cornell-University/arxiv")
+    print("Kaggle dataset successfully downloaded to:", path)
+    return path
+    
+    
 # ----------------------------------------------------------------------------------------------------
 # Normalizes raw text by lowercasing, collapsing whitespace, and trimming edges.
 # Input: text string. Output: cleaned text string for uniform downstream processing.
@@ -192,10 +206,26 @@ def buildCorpusFromJson(datasetPathArg: str = datasetPath,
                         maxPapers: int = None) -> Dict:
                             
     if not os.path.isfile(datasetPathArg):
-        raise FileNotFoundError(
-            f"Dataset file not found at '{datasetPathArg}'. "
-            f"Please place arxiv-metadata-oai-snapshot.json in the project folder."
-        )
+        print(f"Warning: Dataset file not found at '{datasetPathArg}'.")
+        print("Attempting to download dataset automatically from KaggleHub...")
+        kaggle_dir = downloadArxivDatasetWithKaggleHub()
+        downloaded_json = os.path.join(kaggle_dir, "arxiv-metadata-oai-snapshot.json")
+
+        if not os.path.isfile(downloaded_json):
+            print("\nFiles found in Kaggle directory:")
+            for f in os.listdir(kaggle_dir):
+                print("  -", f)
+
+            raise FileNotFoundError(
+                f"KaggleHub download succeeded, but expected JSON file was not found in:\n{kaggle_dir}"
+            )
+            
+        local_copy_path = os.path.join(os.getcwd(), "arxiv-metadata-oai-snapshot.json")
+        print(f"Copying dataset to local project folder: {local_copy_path}")
+        shutil.copyfile(downloaded_json, local_copy_path)
+
+        print("Dataset copied locally. Using local copy for processing.\n")
+        datasetPathArg = local_copy_path
 
     print(f"Loading corpus from local JSON: {datasetPathArg}")
     if maxPapers:
