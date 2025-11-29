@@ -1,7 +1,7 @@
 # Semantic Similarity Search and Ranking for arXiv Research Papers
 ### Using TF–IDF, BM25, Sentence-BERT, and FAISS
 
-This project implements a semantic similarity search engine for academic research papers using **arXiv abstract data**. It evaluates and compares traditional keyword-based retrieval models (TF–IDF, BM25) with modern embedding-based semantic search (Sentence-BERT + FAISS). The system is fully modular, GPU-aware, batch-optimized, and supports real-time interactive querying along with quantitative evaluation through **Precision@K**.
+This project implements a semantic similarity search engine for academic research papers using **arXiv abstract data**. It evaluates and compares traditional keyword-based retrieval models (TF–IDF, BM25) with modern embedding-based semantic search (Sentence-BERT + FAISS). The system is fully modular, GPU-aware, batch-optimized, supports automatic dataset download via **KaggleHub**, and provides real-time interactive querying along with quantitative evaluation through **Precision@K**.
 
 ---
 
@@ -33,8 +33,31 @@ The system automatically selects the optimal compute device:
 
 ---
 
-### 🚀 Batch Processing for Speed
-Batch encoding is used for all embedding operations to maximize throughput. This dramatically speeds up processing when handling 100–500 arXiv abstracts.
+### 📥 Automatic Dataset Download (KaggleHub)
+You **do NOT need to manually download the dataset**.
+
+If the file:
+
+```
+arxiv-metadata-oai-snapshot.json
+```
+
+is not found, the system automatically downloads it using:
+
+```python
+kagglehub.dataset_download("Cornell-University/arxiv")
+```
+
+No credentials or authentication needed.
+
+---
+
+### 🌐 Optional arXiv API Mode
+Instead of using the dataset snapshot, you can fetch papers directly from the arXiv API:
+
+```bash
+python main.py --use-arxiv-api
+```
 
 ---
 
@@ -48,6 +71,17 @@ Implements category-based evaluation using:
 
 This measures the proportion of retrieved papers that share the same **arXiv category** as the query.
 
+The system generates:
+
+- Precision@K line chart  
+- Precision@10 bar chart  
+- Multi-model comparison line plot  
+- Multi-model similarity heatmap  
+- Embedding t-SNE plot  
+- Category distribution visualization  
+- Corpus summary statistics  
+- Single-model search result visualization  
+
 ---
 
 ### 🎛 Interactive Search Mode
@@ -59,11 +93,11 @@ Enter an abstract or description:
 
 Returns ranked papers with:
 
-- Rank
-- Similarity score
-- arXiv ID
-- Category
-- Title
+- Rank  
+- Similarity score  
+- arXiv ID  
+- Category  
+- Title  
 - Abstract snippet
 
 ---
@@ -80,16 +114,32 @@ project/
 ├── evaluation.py
 ├── main.py
 │
-├── test_semantic_search.py
-└── requirements.txt
+├── environment.yml
+└── results/
 ```
+
+---
 
 ## ⚙️ Installation
 
-### 1. Install dependencies
+### 1. Create the Conda environment
 
 ```bash
-pip install -r requirements.txt
+conda env create -f environment.yml
+```
+
+Activate it:
+
+```bash
+conda activate semantic-search-env
+```
+
+---
+
+### 2. Optional: Verify installation
+
+```bash
+python -c "import torch, faiss, sentence_transformers, kagglehub; print('Environment OK!')"
 ```
 
 ---
@@ -102,11 +152,15 @@ pip install -r requirements.txt
 python main.py
 ```
 
+---
+
 ### **2. Only interactive search (skip evaluation)**
 
 ```bash
 python main.py --no-eval
 ```
+
+---
 
 ### **3. Choose retrieval model**
 
@@ -116,10 +170,28 @@ python main.py --model bm25
 python main.py --model bert
 ```
 
+---
+
 ### **4. Change number of results returned**
 
 ```bash
 python main.py --topk 15
+```
+
+---
+
+### **5. Limit dataset size (faster for development)**
+
+```bash
+python main.py --max-papers 50000
+```
+
+---
+
+### **6. Use arXiv API instead of dataset**
+
+```bash
+python main.py --use-arxiv-api
 ```
 
 ---
@@ -130,46 +202,44 @@ python main.py --topk 15
 python -m unittest test_semantic_search.py
 ```
 
-This validates:
+Tests include:
 
 - Text preprocessing  
-- Device selection (GPU/CPU)  
-- Embedding shape consistency  
-- Overall search engine correctness  
+- Device selection  
+- Embedding shape verification  
+- Retrieval correctness  
 
 ---
 
-## 🔍 How the arXiv API Works
+## 🔧 Technical Notes
 
-The project uses the official `arxiv` Python library.
-
-Example call:
+### ✔ Windows Symlink Fix  
+The project includes:
 
 ```python
-search = arxiv.Search(
-    query="cat:cs.LG",
-    max_results=150,
-    sort_by=arxiv.SortCriterion.SubmittedDate
-)
+os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 ```
 
-Each returned `result` object contains:
+This prevents Windows symlink errors such as:
 
-- title  
-- summary (abstract)  
-- primary_category  
-- published date  
-- id (via `get_short_id()`)  
+```
+WinError 1314: A required privilege is not held by the client
+```
 
-Abstracts are normalized and fed into the vectorization/embedding pipeline.
+---
+
+### ✔ Dataset Size  
+The arXiv snapshot is very large.  
+Use `--max-papers` for debugging.
 
 ---
 
 ## 📚 Possible Extensions
 
-- Persist FAISS index to disk
-- Cache arXiv results to speed up development
-- Add a simple web interface (Flask or FastAPI)
-- Add visualization (TSNE of embeddings)
+- Persist FAISS index to disk  
+- Add web UI (Flask/FastAPI)  
+- Add cross-encoder reranking  
+- Add embedding-based clustering  
+- Integrate citation graph analysis  
 
 ---
