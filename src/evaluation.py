@@ -133,7 +133,7 @@ def plotEmbeddingVisualization(searchEngine: SemanticSearchEngine,
     sample_papers = [searchEngine.papers[i] for i in indices]
     
     # Reduce dimensionality with t-SNE
-    tsne = TSNE(n_components=2, random_state=42, perplexity=40, n_iter=1000)
+    tsne = TSNE(n_components=2, random_state=42, perplexity=40, max_iter=1000)
     embeddings_2d = tsne.fit_transform(sample_embeddings)
     
     # Get top 10 categories for coloring to avoid legend overflow

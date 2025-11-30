@@ -1,4 +1,5 @@
 import os
+os.environ["HF_HOME"] = "C:/hf_cache"
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 from typing import List
 import numpy as np
